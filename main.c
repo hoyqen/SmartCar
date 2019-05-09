@@ -39,8 +39,6 @@ volatile float distance_judgement = 0;	//用于判断距离
 unsigned char tick_1ms = 0;								//1ms计数器，作为电机的基本计数器
 unsigned char tick_5ms = 0;								//5ms计数器，作为主函数的基本周期
 unsigned char tick_200ms = 0;							//刷新LED闪烁显示
-unsigned int tick_rushtime=0;
-int tick_slowtime = 0;
 //unsigned char tick_500ms = 0;							//电机驱动延时
 
 unsigned char HalfSpeed = 0;
@@ -70,7 +68,6 @@ short acz[5] ;                   //z轴加速度记录
 int acz_judge;                 //判断用z轴加速度
 short posture = 0;							//姿态，1：坡上；0：坡下
 int i = 0;												//序号
-int stopkkkk = 1;
 short gyrox,gyroy,gyroz;				//陀螺仪原始数据
 short tempIMU;									//温度
 short temp;
@@ -112,12 +109,9 @@ void RampCheck(void)
 //姿态检测
 void PostureCheck(void)
 {
-	if ((acz_judge<15900)||(pitch<-2))
+	if (acz_judge<15300)
 	{
-//		HalfSpeed = 2;
 		posture = 1;
-//		if (ramp == 0)	ramp = 1;
-//		else ramp = 0;
 	}
 	else
 	{
@@ -147,15 +141,10 @@ void BrightCheck(void)
 	}
 }
 
-void endddd(void)
-{while(1)
-{CarStop();}
-}
 //循迹检测,通过判断三个光电对管的状态来控制小车运动
 void SearchLine(void)  //从传感器输出判断各路是否检测到黑线，给Search_L，Search_M，Search_R赋值，在interface.h中找循迹光电对管定义
 {
-	
-if (Search_R == BLACK_AREA)		//中
+	if (Search_R == BLACK_AREA)		//中
 	{
 		ctrl_comm = COMM_RIGHT;
 	}
@@ -172,27 +161,38 @@ if (Search_R == BLACK_AREA)		//中
 		if (Search_L_last == BLACK_AREA)		//左
 		{
 			ctrl_comm = COMM_LEFT;
-	}
+		}
 		else if (Search_R_last == BLACK_AREA)		//右
 		{
 			ctrl_comm = COMM_RIGHT;
-	}
+		}
 		else
 		{
 			ctrl_comm = COMM_RIGHT;
 		}
-	
 	}
 		if (Search_M == BLACK_AREA && Search_L == BLACK_AREA && Search_R == BLACK_AREA)
 	{
-		
-		//CarBack();
-		
+//		if (ramp == 1)
+//		{
+//			ctrl_comm = COMM_UP;
+//			ramp = 0;
+//		}
+//		else
+//		{
+//			ctrl_comm = COMM_STOP;
+//		}
+		if (posture == 1)
+		{
+			ctrl_comm = COMM_UP;
+		}
+		else
+		{
 			ctrl_comm = COMM_STOP;
-		//endddd();
-	
+		}
+	}
 }
-}
+
 //小车运动控制
 void Move(void) //
 {
@@ -206,7 +206,6 @@ void Move(void) //
 			{	
 //				if (ctrl_comm != ctrl_comm_last) oscillation = oscillation/2;
 //				else oscillation =1000;
-				CarGo();
 				CarGo();
 //				display_list_char(8,0,"^");
 				break;
@@ -244,7 +243,10 @@ void Move(void) //
 			default : break;
 		}
 		Delayms(2);//防抖
-
+	if(ctrl_comm_last != ctrl_comm)			//指令发生变化
+	{
+		ctrl_comm_last = ctrl_comm;
+	}
 }
 
 //控制信号接收
@@ -316,22 +318,21 @@ void BarrierDetect(void)
 	}
 	else
 	{
-		HalfSpeed = HalfSpeed;		//速度保持
-
+		HalfSpeed = 0;
 	}
-//	if ((distance_judgement <= 10.5)&&(distance_judgement >= 9)&&((void_right == 0)||(void_left == 0)))//障碍距离不超过5cm
+//	if ((distance_judgement <= 10.5)&&(distance_judgement >= 8)&&((void_right == 0)||(void_left == 0)))//障碍距离不超过5cm
 //	{
 //		ctrl_comm = COMM_STOP;//停车
 //	}
-		if ((distance_judgement <= 10.5)&&(distance_judgement >= 8.5)&&((void_right == 0)||(void_left == 0)))//障碍距离不超过5cm
+		if ((distance_judgement <= 12)&&(distance_judgement >= 4)&&((void_right == 0)||(void_left == 0)))//障碍距离不超过5cm
 	{
 		ctrl_comm = COMM_STOP;//停车
 	}
-	else if ((distance_judgement < 8.5)&&((void_right == 0)||(void_left == 0)))
-	{
-		HalfSpeed = 1;							//速度减半
-		ctrl_comm = COMM_DOWN;//倒车
-	}
+//	else if ((distance_judgement < 8.5)&&((void_right == 0)||(void_left == 0)))
+//	{
+//		HalfSpeed = 1;							//速度减半
+//		ctrl_comm = COMM_DOWN;//倒车
+//	}
 	else
 	{
 		ctrl_comm = ctrl_comm;
@@ -391,15 +392,20 @@ int main(void)
 
 	//=========================================================================
 	//WIFI模块上电自动进入透传模式，如不需要修改WIFI配置，可将初始化部分注释掉
-	//atk_8266_wifista_Init();
+	atk_8266_wifista_Init();
 	//=========================================================================
 
-//	display_list_char(0,0,"0 00000");
+//	display_list_char(0,0,"0 00000");	
+	for (i = 0;i<5;i++)
+	{
+		MPU_Get_Accelerometer(&aacx,&aacy,&aacz);	//获取加速度
+		acz[i] = aacz;
+	}
 	
  //=======以下为主函数大循环==============================================
  while(1)
  {	
-	if (Search_M != WHITE_AREA || Search_L != WHITE_AREA || Search_R != WHITE_AREA)
+	 			if (Search_M != WHITE_AREA || Search_L != WHITE_AREA || Search_R != WHITE_AREA)
 			{
 				if (Search_L_last != Search_L) Search_L_last = Search_L;
 				if (Search_R_last != Search_R) Search_R_last = Search_L;
@@ -408,71 +414,100 @@ int main(void)
 			Search_L = SEARCH_L_IO;
 			Search_R = SEARCH_R_IO;
 			Search_M = SEARCH_M_IO;
-	 
-			
-	  if(tick_5ms >= 5) //5ms定时到
+	  if(tick_5ms >= 6) //5ms定时到
 		{			
-			if (Search_M != WHITE_AREA || Search_L != WHITE_AREA || Search_R != WHITE_AREA)
-			{
-				if (Search_L_last != Search_L) Search_L_last = Search_L;
-				if (Search_R_last != Search_R) Search_R_last = Search_L;
-				if (Search_M_last != Search_M) Search_M_last = Search_L;
-			} 
-			Search_L = SEARCH_L_IO;
-			Search_R = SEARCH_R_IO;
-			Search_M = SEARCH_M_IO;
 			
+			MPU_Get_Accelerometer(&aacx,&aacy,&aacz);	//获取加速度
+
+			MPU_Get_Gyroscope(&gyrox,&gyroy,&gyroz);	//获取角速度
+			
+			for(i=0;i<4;i++)
+			{
+				acz[i] = acz[i+1];
+			}
+			acz[4] = aacz;
+			acz_judge = 0;
+			for(i=0;i<5;i++)
+			{
+				acz_judge = acz_judge+acz[i];
+			}
+			acz_judge = acz_judge/5;
+
+			mpu_dmp_get_data(&pitch,&roll,&yaw);		//获取欧拉角
+			
+			if(ctrl_comm_last != ctrl_comm)
+			{
+				oscillation = oscillation/2;
+				ctrl_comm_last = ctrl_comm;
+			}
+			else
+			{
+				oscillation = 1000;
+			}
+			tick_5ms = 0;
+			tick_200ms++;
 			key = KEY_Scan(0);
-			if(key == KEY2_PRES) //按键2：是否循迹行车
+			if(key == KEY1_PRES) //按键1：是否通过串口发送图像
+			{
+				if(Is_Display == 0)
+				{
+					Is_Display = 1;
+//					display_list_char(14,0,"1");	
+				}
+				else
+				{
+					Is_Display = 0;
+//					display_list_char(14,0,"0");
+				}
+			}
+			else if(key == KEY2_PRES) //按键2：是否循迹行车
 			{
 				if(Is_Movebyline == 0)
 				{
 					Is_Movebyline = 1;
-					display_list_char(15,0,"1");	
+//					display_list_char(15,0,"1");	
 				}
 				else
 				{
 					Is_Movebyline = 0;
-					display_list_char(15,0,"0");
+//					display_list_char(15,0,"0");
 				}	
 			}
-			tick_5ms = 0;
-			//tick_200ms++;
+			
+//				if(pitch > pitch_last+7 || pitch < pitch_last-7)
+//			{
+//				if(posture == 1) posture = 0;
+//				else posture = 1;
+//			}															//判断姿态是否改变
+//			pitch_last = pitch;
 			
 			
-			
-		//	if(tick_200ms >= 4)	//实测调整
-			//{
-				//tick_200ms = 0;
-//LEDToggle(LED_PIN); //用户指示灯闪烁,表明程序运行正常
-	//			atk_8266_wifista_Tran();					//wifi发送数据至上位机 中速
+			if(tick_200ms >= 1)	//实测调整
+			{
+				tick_200ms = 0;
+//				LEDToggle(LED_PIN); //用户指示灯闪烁,表明程序运行正常
+				atk_8266_wifista_Tran();					//wifi发送数据至上位机 中速
 							
-		//	}
+			}
 			
-		//	MeasureSpeed();							//测速
-				
-	//		PostureCheck();				//姿态检测
 
-		
 			
-		//	BrightCheck();			//执行环境光亮度检测
+			MeasureSpeed();							//测速
 			
-		//	SignalReceive();		//控制信号接收
+//			RampCheck();          //坡道检测
 			
-	//		if(posture != 1)
-	//		{
-	//			BarrierDetect();					//避障测距
-	//		}
-			SearchLine();
-		if (Is_Movebyline != 0 )
-		{ 	
-         			//执行循迹检测
-		Move();	
-    		
-		}
-		
-					//小车运动控制
+//			PostureCheck();				//姿态检测
 
+			SearchLine();				//执行循迹检测
+			
+			BrightCheck();			//执行环境光亮度检测
+			
+			SignalReceive();		//控制信号接收
+			
+//			BarrierDetect();					//避障测距
+			
+			Move();							//小车运动控制
+			
 		}
 		
 		
